@@ -5,13 +5,14 @@ backend/*.pyc
 *.pyc
 __pycache__/
 
+# Environment / secrets — NEVER commit these
+.env
+*.env
+backend/.env
+
 # Node
 frontend/node_modules/
 frontend/dist/
-
-# Environment / secrets
-.env
-*.env
 
 # OS
 .DS_Store
