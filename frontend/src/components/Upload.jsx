@@ -20,6 +20,8 @@ const EXPECTED_COLUMNS = [
   { name: "skills",                    note: "Comma-separated e.g. Python, React" },
   { name: "no_of_projects",            note: "Non-negative integer" },
   { name: "working_currently",         note: "Yes / No" },
+  { name: "phone_number",              note: "10-digit number e.g. 9876543210" },
+  { name: "email",                     note: "Valid email e.g. student@example.com" },
 ];
 
 const STEP = {

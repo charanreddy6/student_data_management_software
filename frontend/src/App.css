@@ -834,3 +834,154 @@ body {
   gap: 6px;
   margin-top: 10px;
 }
+
+/* ── Multi-select dropdown ────────────────────────────────────────────────── */
+.multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.multi-select-btn {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #2d3748;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.multi-select-btn:hover,
+.multi-select-btn:focus {
+  border-color: #2b6cb0;
+}
+
+.multi-select-active {
+  border-color: #2b6cb0;
+  background: #ebf4ff;
+  color: #2b6cb0;
+  font-weight: 600;
+}
+
+.multi-select-arrow {
+  font-size: 0.65rem;
+  color: #a0aec0;
+  margin-left: 6px;
+}
+
+.multi-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  background: white;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  z-index: 100;
+  padding: 6px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  color: #2d3748;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.multi-select-option:hover {
+  background: #ebf4ff;
+}
+
+.multi-select-option input[type="checkbox"] {
+  accent-color: #2b6cb0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.multi-select-clear {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 6px 12px 4px;
+  padding: 5px;
+  background: none;
+  border: 1px solid #fc8181;
+  border-radius: 5px;
+  color: #c53030;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.multi-select-clear:hover {
+  background: #fff5f5;
+}
+
+/* ── Delete table ─────────────────────────────────────────────────────────── */
+.university-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.university-row .filter-select-full {
+  flex: 1;
+}
+
+.btn-delete-table {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: none;
+  border: 1px solid #fc8181;
+  border-radius: 7px;
+  color: #c53030;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-delete-table:hover {
+  background: #fff5f5;
+}
+
+.delete-confirm-box {
+  background: #fff5f5;
+  border: 1px solid #fc8181;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 4px;
+}
+
+.delete-confirm-text {
+  font-size: 0.88rem;
+  color: #742a2a;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.btn-danger {
+  background: #e53e3e;
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c53030;
+}

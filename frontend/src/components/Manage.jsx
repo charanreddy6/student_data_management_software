@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 
 const API = "http://localhost:8000";
 
 const EMPTY_FILTERS = {
-  gender: "", degree: "", branch: "", is_passed_out: "",
-  current_year: "", working_currently: "",
+  gender: "", is_passed_out: "", working_currently: "",
+  degree: [], branch: [], current_year: [],
   passing_year_from: "", passing_year_to: "",
   age_min: "", age_max: "",
   cgpa_min: "", cgpa_max: "",
@@ -13,6 +13,62 @@ const EMPTY_FILTERS = {
   arrear_history_min: "", arrear_history_max: "",
   no_of_projects_min: "", no_of_projects_max: "",
 };
+
+// ── Multi-select dropdown component ──────────────────────────────────────────
+function MultiSelect({ label, options, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggle = (val) => {
+    if (selected.includes(val)) onChange(selected.filter((v) => v !== val));
+    else onChange([...selected, val]);
+  };
+
+  const displayText = selected.length === 0
+    ? `All`
+    : selected.length === 1
+    ? selected[0]
+    : `${selected.length} selected`;
+
+  return (
+    <div className="multi-select" ref={ref}>
+      <button
+        type="button"
+        className={`multi-select-btn ${selected.length > 0 ? "multi-select-active" : ""}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {displayText}
+        <span className="multi-select-arrow">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="multi-select-dropdown">
+          {options.map((opt) => (
+            <label key={opt} className="multi-select-option">
+              <input
+                type="checkbox"
+                checked={selected.includes(opt)}
+                onChange={() => toggle(opt)}
+              />
+              {opt}
+            </label>
+          ))}
+          {selected.length > 0 && (
+            <button className="multi-select-clear" onClick={() => onChange([])}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Manage() {
   const [tables, setTables]               = useState([]);
@@ -23,7 +79,11 @@ function Manage() {
   const [loading, setLoading]             = useState(false);
   const [searchTerm, setSearchTerm]       = useState("");
   const [searchBy, setSearchBy]           = useState("full_name");
+  const [skillSearch, setSkillSearch]     = useState("");
+  const [sortOrder, setSortOrder]         = useState("");
   const [filters, setFilters]             = useState(EMPTY_FILTERS);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => { fetchTables(); }, []);
 
@@ -38,8 +98,6 @@ function Manage() {
 
   const handleTableChange = async (tableName) => {
     setSelectedTable(tableName);
-    setSearchTerm("");
-    setFilters(EMPTY_FILTERS);
     setTableData([]);
     setColumns([]);
     if (!tableName) return;
@@ -60,24 +118,45 @@ function Manage() {
   };
 
   const setFilter = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
-  const clearFilters = () => { setFilters(EMPTY_FILTERS); setSearchTerm(""); };
-  const activeFilterCount = Object.values(filters).filter((v) => v !== "").length + (searchTerm ? 1 : 0);
+  const clearFilters = () => { setFilters(EMPTY_FILTERS); setSearchTerm(""); setSkillSearch(""); setSortOrder(""); };
+
+  const handleDeleteTable = async () => {
+    setDeleteLoading(true);
+    try {
+      await axios.delete(`${API}/tables/${selectedTable}`);
+      await fetchTables();
+      setSelectedTable("");
+      setTableData([]);
+      setColumns([]);
+      setDeleteConfirm(false);
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to delete table.");
+      setDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+  const activeFilterCount = Object.values(filters).filter((v) => Array.isArray(v) ? v.length > 0 : v !== "").length + (searchTerm ? 1 : 0) + (skillSearch ? 1 : 0);
 
   const uniqueVals = (key) =>
     [...new Set(tableData.map((r) => String(r[key] ?? "")).filter(Boolean))].sort();
 
   const displayData = useMemo(() => {
-    return tableData.filter((row) => {
+    const filtered = tableData.filter((row) => {
       if (searchTerm.trim()) {
         if (!String(row[searchBy] ?? "").toLowerCase().includes(searchTerm.trim().toLowerCase())) return false;
+      }
+      if (skillSearch.trim()) {
+        if (!String(row.skills ?? "").toLowerCase().includes(skillSearch.trim().toLowerCase())) return false;
       }
       const num = (v) => parseFloat(String(v ?? "").trim());
       const str = (v) => String(v ?? "").trim().toLowerCase();
       if (filters.gender            && str(row.gender)           !== filters.gender.toLowerCase())           return false;
-      if (filters.degree            && str(row.degree)           !== filters.degree.toLowerCase())           return false;
-      if (filters.branch            && str(row.branch)           !== filters.branch.toLowerCase())           return false;
+      if (filters.degree.length > 0  && !filters.degree.map(v=>v.toLowerCase()).includes(str(row.degree)))   return false;
+      if (filters.branch.length > 0  && !filters.branch.map(v=>v.toLowerCase()).includes(str(row.branch)))   return false;
       if (filters.is_passed_out     && str(row.is_passed_out)    !== filters.is_passed_out.toLowerCase())    return false;
-      if (filters.current_year      && str(row.current_year)     !== filters.current_year.toLowerCase())     return false;
+      if (filters.current_year.length > 0 && !filters.current_year.map(v=>v.toLowerCase()).includes(str(row.current_year))) return false;
       if (filters.working_currently && str(row.working_currently)!== filters.working_currently.toLowerCase())return false;
       if (filters.age_min            !== "" && num(row.age)            < num(filters.age_min))            return false;
       if (filters.age_max            !== "" && num(row.age)            > num(filters.age_max))            return false;
@@ -93,7 +172,10 @@ function Manage() {
       if (filters.no_of_projects_max !== "" && num(row.no_of_projects) > num(filters.no_of_projects_max)) return false;
       return true;
     });
-  }, [tableData, searchTerm, searchBy, filters]);
+    if (sortOrder === "cgpa_desc") filtered.sort((a, b) => parseFloat(b.cgpa) - parseFloat(a.cgpa));
+    if (sortOrder === "cgpa_asc")  filtered.sort((a, b) => parseFloat(a.cgpa) - parseFloat(b.cgpa));
+    return filtered;
+  }, [tableData, searchTerm, searchBy, skillSearch, filters, sortOrder]);
 
   return (
     <div className="page-container">
@@ -114,13 +196,42 @@ function Manage() {
               {/* University selector */}
               <div className="filter-row">
                 <label className="filter-label">Filter</label>
-                <select className="filter-select-full" value={selectedTable}
-                  onChange={(e) => handleTableChange(e.target.value)}>
-                  <option value="">-- Choose a university --</option>
-                  <option value="__all__">All Universities</option>
-                  {tables.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <div className="university-row">
+                  <select className="filter-select-full" value={selectedTable}
+                    onChange={(e) => handleTableChange(e.target.value)}>
+                    <option value="">-- Choose a university --</option>
+                    <option value="__all__">All Universities</option>
+                    {tables.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  {selectedTable && selectedTable !== "__all__" && (
+                    <button
+                      className="btn-delete-table"
+                      onClick={() => setDeleteConfirm(true)}
+                      title="Delete this table"
+                    >
+                      Delete University
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Delete confirmation */}
+              {deleteConfirm && (
+                <div className="delete-confirm-box">
+                  <p className="delete-confirm-text">
+                    Permanently delete university <strong>{selectedTable}</strong>?
+                    This will remove all student records in it and cannot be undone.
+                  </p>
+                  <div className="button-row">
+                    <button className="btn btn-outline" onClick={() => setDeleteConfirm(false)}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-danger" onClick={handleDeleteTable} disabled={deleteLoading}>
+                      {deleteLoading ? "Deleting..." : "Yes, Delete"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Column filters — shown under university once data loads */}
               {tableData.length > 0 && (
@@ -145,17 +256,19 @@ function Manage() {
                     </div>
                     <div className="col-filter-item">
                       <label>Degree</label>
-                      <select value={filters.degree} onChange={(e) => setFilter("degree", e.target.value)}>
-                        <option value="">All</option>
-                        {uniqueVals("degree").map((v) => <option key={v} value={v}>{v}</option>)}
-                      </select>
+                      <MultiSelect
+                        options={uniqueVals("degree")}
+                        selected={filters.degree}
+                        onChange={(val) => setFilter("degree", val)}
+                      />
                     </div>
                     <div className="col-filter-item">
                       <label>Branch</label>
-                      <select value={filters.branch} onChange={(e) => setFilter("branch", e.target.value)}>
-                        <option value="">All</option>
-                        {uniqueVals("branch").map((v) => <option key={v} value={v}>{v}</option>)}
-                      </select>
+                      <MultiSelect
+                        options={uniqueVals("branch")}
+                        selected={filters.branch}
+                        onChange={(val) => setFilter("branch", val)}
+                      />
                     </div>
                     <div className="col-filter-item">
                       <label>Passed Out</label>
@@ -163,11 +276,11 @@ function Manage() {
                         const val = e.target.value;
                         setFilter("is_passed_out", val);
                         if (val === "Yes") {
-                          setFilter("current_year", "-");
+                          setFilter("current_year", ["-"]);
                           setFilter("active_arrears_min", "0");
                           setFilter("active_arrears_max", "0");
-                        } else if (val !== "Yes") {
-                          setFilter("current_year", "");
+                        } else {
+                          setFilter("current_year", []);
                           setFilter("active_arrears_min", "");
                           setFilter("active_arrears_max", "");
                         }
@@ -179,14 +292,11 @@ function Manage() {
                     </div>
                     <div className="col-filter-item">
                       <label>Current Year</label>
-                      <select value={filters.current_year}
-                        disabled={filters.is_passed_out === "Yes"}
-                        onChange={(e) => setFilter("current_year", e.target.value)}>
-                        <option value="">All</option>
-                        <option value="1">1</option><option value="2">2</option>
-                        <option value="3">3</option><option value="4">4</option>
-                        <option value="-">- (Passed out)</option>
-                      </select>
+                      <MultiSelect
+                        options={["1","2","3","4","-"]}
+                        selected={filters.current_year}
+                        onChange={(val) => setFilter("current_year", val)}
+                      />
                     </div>
                     <div className="col-filter-item">
                       <label>Working Currently</label>
@@ -274,6 +384,38 @@ function Manage() {
                     <button className="search-clear" onClick={() => setSearchTerm("")}>✕</button>
                   )}
                 </div>
+              </div>
+
+              {/* Skill search row */}
+              <div className="filter-row">
+                <label className="filter-label">Search by Skill</label>
+                <div className="search-attached">
+                  <input type="text" className="search-input"
+                    placeholder="e.g. Python, React, SQL..."
+                    value={skillSearch}
+                    onChange={(e) => setSkillSearch(e.target.value)}
+                    disabled={!selectedTable}
+                  />
+                  {skillSearch && (
+                    <button className="search-clear" onClick={() => setSkillSearch("")}>✕</button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sort row */}
+              <div className="filter-row">
+                <label className="filter-label">Sort by CGPA</label>
+                <select
+                  className="filter-select-full"
+                  style={{ maxWidth: "260px" }}
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  disabled={!selectedTable}
+                >
+                  <option value="">No Sorting</option>
+                  <option value="cgpa_desc">Highest CGPA First</option>
+                  <option value="cgpa_asc">Lowest CGPA First</option>
+                </select>
               </div>
 
             </div>

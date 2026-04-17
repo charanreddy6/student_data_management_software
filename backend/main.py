@@ -36,6 +36,8 @@ REQUIRED_COLUMNS = [
     "skills",
     "no_of_projects",
     "working_currently",
+    "phone_number",
+    "email",
 ]
 
 # ─── Per-column validation rules ──────────────────────────────────────────────
@@ -147,6 +149,16 @@ def validate_student_data(df: pd.DataFrame) -> list[str]:
         working = str(row.get("working_currently", "")).strip().lower()
         if working not in ("yes", "no"):
             errors.append(f"{prefix}: 'working_currently' must be Yes or No (got '{row.get('working_currently')}').")
+
+        # 16. phone_number — 10 digits
+        phone = str(row.get("phone_number", "")).strip()
+        if not re.fullmatch(r"\d{10}", phone):
+            errors.append(f"{prefix}: 'phone_number' must be a 10-digit number (got '{phone}').")
+
+        # 17. email — basic email format
+        email = str(row.get("email", "")).strip()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            errors.append(f"{prefix}: 'email' must be a valid email address (got '{email}').")
 
         # Stop early if too many errors (avoid flooding)
         if len(errors) >= 20:
@@ -295,7 +307,9 @@ def create_table(body: CreateTableRequest):
                 `arrear_history`            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
                 `skills`                    TEXT            NOT NULL,
                 `no_of_projects`            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-                `working_currently`         VARCHAR(3)      NOT NULL
+                `working_currently`         VARCHAR(3)      NOT NULL,
+                `phone_number`              CHAR(10)        NOT NULL,
+                `email`                     VARCHAR(255)    NOT NULL
             )
         """
         cursor.execute(create_sql)
@@ -430,6 +444,22 @@ def get_tables():
         cursor.close()
         conn.close()
         return {"tables": tables}
+    except mysql.connector.Error as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.delete("/tables/{table_name}")
+def delete_table(table_name: str):
+    """Permanently drop a table from the database."""
+    table_name = sanitize_table_name(table_name)
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {"message": f"Table '{table_name}' deleted successfully."}
     except mysql.connector.Error as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
