@@ -20,7 +20,7 @@ A full-stack web application for uploading, storing, and managing student record
 ### Upload
 - Upload `.xlsx` / `.xls` Excel files containing student data
 - Automatic column name cleaning (lowercase, spaces → underscores)
-- Strict schema validation — all 15 required columns must be present
+- Strict schema validation — all 17 required columns must be present
 - Per-row data validation with detailed error messages
 - **Create New Table** — dynamically creates a typed MySQL table and inserts all rows
 - **Merge with Existing Table** — appends data to an existing table with duplicate detection
@@ -33,16 +33,23 @@ A full-stack web application for uploading, storing, and managing student record
 ### View / Manage Data
 - Select any university (table) from a dropdown to load its data
 - Select **All Universities** to view combined data from all tables with a `university` column appended
-- **Column Filters** — filter by Gender, Degree, Branch, Passed Out, Current Year, Working Currently, Age range, CGPA range, Passing Year range, Active Arrears range, Arrear History range, No. of Projects range
-- Smart filter rules — selecting "Passed Out = Yes" auto-disables Current Year and Active Arrears filters
-- **Search** — search by student name or roll number
-- All filtering and search happens in the browser — no extra API calls
+- **Delete University** — permanently drops a table from the database with a confirmation prompt
+- **Column Filters:**
+  - Multi-select dropdowns for Degree, Branch, Current Year
+  - Single-select dropdowns for Gender, Passed Out, Working Currently
+  - Range inputs for Age, CGPA, Passing Year, Active Arrears, Arrear History, No. of Projects
+  - Smart rule — selecting "Passed Out = Yes" auto-disables Current Year and Active Arrears filters
+- **Search by Name or Roll No** — instant search across loaded data
+- **Search by Skill** — find students with a specific skill (works alongside name/roll no search)
+- **Sort by CGPA** — highest first or lowest first
+- Filters, search, and sort all persist when switching between universities
+- All filtering happens in the browser — no extra API calls
 
 ---
 
 ## Required Excel Schema
 
-The uploaded Excel file must contain exactly these 15 columns (in any order):
+The uploaded Excel file must contain exactly these 17 columns (in any order):
 
 | # | Column Name | Format / Rule |
 |---|---|---|
@@ -61,6 +68,8 @@ The uploaded Excel file must contain exactly these 15 columns (in any order):
 | 13 | `skills` | Comma-separated e.g. `Python, React, SQL` |
 | 14 | `no_of_projects` | Non-negative integer |
 | 15 | `working_currently` | Yes / No |
+| 16 | `phone_number` | 10-digit number e.g. `9876543210` |
+| 17 | `email` | Valid email e.g. `student@example.com` |
 
 ---
 
@@ -70,7 +79,9 @@ The uploaded Excel file must contain exactly these 15 columns (in any order):
 student-data-system/
 ├── backend/
 │   ├── main.py            # FastAPI app — all API endpoints + validation logic
-│   ├── db.py              # MySQL connection
+│   ├── db.py              # MySQL connection (reads from .env)
+│   ├── .env               # Your credentials — never committed
+│   ├── .env.example       # Template for credentials
 │   └── requirements.txt   # Python dependencies
 ├── frontend/
 │   └── src/
@@ -79,7 +90,7 @@ student-data-system/
 │       └── components/
 │           ├── Home.jsx    # Landing page
 │           ├── Upload.jsx  # Upload + create/merge flow
-│           └── Manage.jsx  # View, filter, and search data
+│           └── Manage.jsx  # View, filter, search, and delete data
 └── README.md
 ```
 
@@ -95,6 +106,7 @@ student-data-system/
 | `GET` | `/tables` | List all tables in the database |
 | `GET` | `/tables/all/combined` | Fetch all rows from all tables with a `university` column |
 | `GET` | `/tables/{table_name}` | Fetch all rows from a specific table |
+| `DELETE` | `/tables/{table_name}` | Permanently drop a table from the database |
 
 ---
 
@@ -112,7 +124,7 @@ student-data-system/
 
 ```bash
 git clone https://github.com/charanreddy6/student_data_management_software.git
-cd student-data-system
+cd student_data_management_software
 ```
 
 ### 2. MySQL — Create the database
@@ -139,22 +151,27 @@ source venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt
 ```
 
-Update your MySQL credentials in `backend/db.py`:
+Copy the env template and fill in your credentials:
 
-```python
-def get_db():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="your_password",   # ← change this
-        database="student-data-management"
-    )
+```bash
+copy .env.example .env      # Windows
+cp .env.example .env        # macOS / Linux
+```
+
+Edit `backend/.env`:
+
+```
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=student-data-management
 ```
 
 Start the backend server:
 
 ```bash
-uvicorn main:app --reload
+venv\Scripts\uvicorn.exe main:app --reload    # Windows
+uvicorn main:app --reload                     # macOS / Linux (with venv active)
 ```
 
 Backend runs at: `http://localhost:8000`  
@@ -177,18 +194,18 @@ Frontend runs at: `http://localhost:5173`
 ```
 Excel File
     ↓
-POST /upload  →  Pandas reads & validates  →  stored in memory
+POST /upload  →  Pandas reads & validates 17 columns  →  stored in memory
     ↓
 User chooses: Create Table  or  Merge
     ↓
-POST /create-table          POST /merge (force=false)
-    ↓                              ↓
-MySQL CREATE TABLE         Check duplicate rollnos
-INSERT all rows                    ↓
-                        Duplicates? → Show warning to user
-                                   ↓
-                        Cancel → nothing written
-                        Merge  → UPDATE duplicates + INSERT new rows
+POST /create-table              POST /merge (force=false)
+    ↓                                  ↓
+MySQL CREATE TABLE             Check duplicate rollnos (read-only)
+INSERT all rows                        ↓
+                            Duplicates? → Show warning to user
+                                       ↓
+                            Cancel → nothing written
+                            Merge  → UPDATE duplicates + INSERT new rows
 ```
 
 ```
@@ -198,7 +215,7 @@ GET /tables/{name}  →  SELECT * FROM table  →  JSON to React
     ↓
 React holds rows in state
     ↓
-Filter / Search  →  browser-side .filter()  →  no extra API call
+Filter / Search / Sort  →  browser-side operations  →  no extra API call
 ```
 
 ---
@@ -208,6 +225,7 @@ Filter / Search  →  browser-side .filter()  →  no extra API call
 - Table names are sanitized with a regex (`[^\w]` → `_`) to prevent SQL injection
 - All database queries use parameterized statements (`%s` placeholders)
 - Column names are validated against a strict whitelist before any DB operation
+- Database credentials stored in `.env` file — never committed to version control
 - CORS is restricted to `http://localhost:5173`
 
 ---
